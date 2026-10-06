@@ -82,6 +82,24 @@ describe('RuleWorkspaceViewModel', () => {
     workspace.dispose();
   });
 
+  it('lists out-of-range conditions as warnings and still runs checks for legacy projects', async () => {
+    const repository = new MemoryRepository();
+    const checker = new FakeChecker();
+    const workspace = new RuleWorkspaceViewModel(repository, checker);
+    await workspace.start();
+    const project = workspace.getSnapshot().project as RuleProject;
+    workspace.commitProject({ ...project, fields: project.fields.map((field) => field.id === 'cart-total' ? { ...field, max: 1200 } : field) });
+    const warnings = workspace.getSnapshot().validationIssues.filter((issue) => issue.severity === 'warning');
+    expect(warnings.map((issue) => issue.code)).toEqual(['condition-out-of-range', 'condition-out-of-range']);
+    expect(warnings.every((issue) => issue.fieldId === 'cart-total' && Boolean(issue.ruleId))).toBe(true);
+    expect(workspace.getSnapshot().phase).not.toBe('validating');
+    const callsBefore = checker.calls;
+    await workspace.runCheck();
+    expect(workspace.getSnapshot().checkStatus).toBe('success');
+    expect(checker.calls).toBe(callsBefore + 1);
+    workspace.dispose();
+  });
+
   it('saves versions, freezes and resumes a version, and copies it into a new project', async () => {
     const workspace = new RuleWorkspaceViewModel(new MemoryRepository(), new FakeChecker());
     await workspace.start();

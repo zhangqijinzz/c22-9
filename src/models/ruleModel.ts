@@ -67,9 +67,12 @@ export interface WorkspaceDocument {
   activeProjectId: string;
 }
 
+export type IssueSeverity = 'error' | 'warning';
+
 export interface ValidationIssue {
   code: string;
   message: string;
+  severity: IssueSeverity;
   fieldId?: string;
   ruleId?: string;
 }
@@ -110,3 +113,5 @@ export interface DomainChecker {
 }
 
 export const fieldLabel = (field: RuleField): string => field.name || '未命名字段';
+
+export const isErrorIssue = (issue: ValidationIssue): boolean => issue.severity === 'error';

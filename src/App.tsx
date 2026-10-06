@@ -1,5 +1,6 @@
 import { useEffect, useState, useSyncExternalStore } from 'react';
 import type { ModuleId } from './models/ruleModel';
+import { isErrorIssue } from './models/ruleModel';
 import { FieldsView } from './features/fields/FieldsView';
 import { RulesView } from './features/rules/RulesView';
 import { SamplesView } from './features/samples/SamplesView';
@@ -20,6 +21,8 @@ export default function App() {
   const state = useSyncExternalStore(workspace.subscribe, workspace.getSnapshot, workspace.getSnapshot);
   const project = state.project;
   const activeNavigation = navigation.find((item) => item.id === state.activeModule) ?? navigation[0];
+  const errors = state.validationIssues.filter(isErrorIssue);
+  const warnings = state.validationIssues.filter((issue) => !isErrorIssue(issue));
 
   useEffect(() => {
     void workspace.start();
@@ -38,7 +41,7 @@ export default function App() {
         <div className="brand-lockup"><div className="brand-mark"><span /><span /><span /></div><div><strong>RuleWeave</strong><small>RULE SYSTEM STUDIO</small></div></div>
         <div className="project-switcher"><span className="eyebrow">当前项目</span><select aria-label="切换项目" value={project?.id ?? ''} disabled={!state.workspace} onChange={(event) => workspace.switchProject(event.target.value)}>{state.workspace?.projects.map((item) => <option value={item.id} key={item.id}>{item.title}</option>)}</select><span className="project-status"><i />本地工作区</span></div>
         <div className="sidebar-spacer" />
-        <div className="project-health"><div className="health-header"><span>项目状态</span><span className={state.validationIssues.length ? 'health-badge health-warn' : state.checkStatus === 'success' ? 'health-badge health-good' : 'health-badge'}>{state.validationIssues.length ? '待修复' : state.checkStatus === 'success' ? '已检查' : '草稿'}</span></div><div className="health-track"><span style={{ width: `${state.validationIssues.length ? 38 : project?.rules.length ? 84 : 16}%` }} /></div><small>{state.validationIssues.length ? '存在定义问题，无法运行检查' : project?.rules.length ? `${project.rules.length} 条规则 · 可继续编辑` : '先定义字段和规则'}</small></div>
+        <div className="project-health"><div className="health-header"><span>项目状态</span><span className={errors.length || warnings.length ? 'health-badge health-warn' : state.checkStatus === 'success' ? 'health-badge health-good' : 'health-badge'}>{errors.length ? '待修复' : warnings.length ? '有警告' : state.checkStatus === 'success' ? '已检查' : '草稿'}</span></div><div className="health-track"><span style={{ width: `${errors.length ? 38 : warnings.length ? 60 : project?.rules.length ? 84 : 16}%` }} /></div><small>{errors.length ? '存在定义问题，无法运行检查' : warnings.length ? `${warnings.length} 条警告 · 检查可正常进行` : project?.rules.length ? `${project.rules.length} 条规则 · 可继续编辑` : '先定义字段和规则'}</small></div>
         <button className="new-project-button" onClick={() => workspace.createProject()}><span>＋</span> 新建规则项目</button>
         <footer className="sidebar-footer"><span className="avatar-dot">R</span><span><strong>本地规则空间</strong><small>所有数据保存在此浏览器</small></span><span className="local-lock">⌑</span></footer>
       </aside>

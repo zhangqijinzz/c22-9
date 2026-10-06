@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { evaluateSample } from '../domain/conditionEvaluator';
 import { validateField, validateProject } from '../domain/fieldValidation';
 import { analyzeRules } from '../domain/ruleAnalysis';
-import type { BusinessRule, RuleField, RuleProject } from '../models/ruleModel';
+import type { BusinessRule, PredicateCondition, RuleField, RuleProject } from '../models/ruleModel';
 
 const amount: RuleField = { id: 'amount', name: '金额', type: 'number', min: 0, max: 1000 };
 const tier: RuleField = { id: 'tier', name: '等级', type: 'enum', enumValues: ['basic', 'gold'] };
@@ -32,6 +32,44 @@ describe('field and project validation', () => {
     ];
     expect(validateProject(project(rules))).toEqual([]);
     expect(evaluateSample(project(rules), { amount: 12, tier: 'gold', active: true }).matchedRules.map((rule) => rule.id)).toEqual(['gold', 'active']);
+  });
+});
+
+describe('out-of-range condition warnings', () => {
+  const narrowedAmount = (max: number): RuleField => ({ ...amount, max });
+  const withAmount = (rules: BusinessRule[], max = 1200): RuleProject => project(rules, [narrowedAmount(max), tier, active]);
+
+  it('warns on the field and rule once a threshold falls outside the narrowed range, and clears after adjustment', () => {
+    const issues = validateProject(withAmount([makeRule('vip', amountAtLeast(1500))]));
+    const warning = issues.find((issue) => issue.code === 'condition-out-of-range');
+    expect(warning).toMatchObject({ severity: 'warning', fieldId: 'amount', ruleId: 'vip' });
+    expect(warning?.message).toContain('金额');
+    expect(warning?.message).toContain('0 ~ 1200');
+    expect(issues.some((issue) => issue.severity === 'error')).toBe(false);
+    expect(validateProject(withAmount([makeRule('vip', amountAtLeast(1200))]))).toEqual([]);
+  });
+
+  it('flags exactly the operators and ranges that can no longer be satisfied', () => {
+    const cases: Array<[PredicateCondition, boolean]> = [
+      [{ kind: 'predicate', fieldId: 'amount', operator: 'gt', value: 1200 }, true],
+      [{ kind: 'predicate', fieldId: 'amount', operator: 'gte', value: 1200 }, false],
+      [{ kind: 'predicate', fieldId: 'amount', operator: 'eq', value: 1201 }, true],
+      [{ kind: 'predicate', fieldId: 'amount', operator: 'eq', value: 1200 }, false],
+      [{ kind: 'predicate', fieldId: 'amount', operator: 'lt', value: 0 }, true],
+      [{ kind: 'predicate', fieldId: 'amount', operator: 'lte', value: 0 }, false],
+      [{ kind: 'predicate', fieldId: 'amount', operator: 'between', value: { min: 1300, max: 2000 } }, true],
+      [{ kind: 'predicate', fieldId: 'amount', operator: 'between', value: { min: 1000, max: 2000 } }, false],
+    ];
+    for (const [condition, shouldWarn] of cases) {
+      const issues = validateProject(withAmount([makeRule('r', { kind: 'group', operator: 'and', conditions: [condition] })]));
+      expect(issues.some((issue) => issue.code === 'condition-out-of-range')).toBe(shouldWarn);
+    }
+  });
+
+  it('keeps existing validation problems as errors', () => {
+    const issues = validateProject(project([makeRule('bad', amountAtLeast(10))], [{ ...amount, min: 10, max: 0 }, tier, active]));
+    expect(issues.length).toBeGreaterThan(0);
+    expect(issues.every((issue) => issue.severity === 'error')).toBe(true);
   });
 });
 

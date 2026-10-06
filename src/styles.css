@@ -248,6 +248,8 @@ button:disabled { cursor: not-allowed !important; opacity: .5; }
 .validation-banner, .error-banner, .truncated-banner { display: flex; align-items: center; gap: 9px; margin: 0 0 11px; padding: 9px 11px; border: 1px solid #efdfc7; border-radius: 6px; background: #fffaf2; color: #9b7a4d; font-size: 9px; }
 .validation-banner strong { color: #8f6c3f; font-size: 9px; }
 .validation-banner span { flex: 1; }
+.warning-banner { border-style: dashed; border-color: #ecd9b8; background: #fff6e7; }
+.warning-banner strong { color: #a77f42; }
 .error-banner { border-color: #efd7d3; background: #fff7f5; color: #ab665d; }
 .truncated-banner { border-color: #dce5ee; background: #f6f9fc; color: #6b8198; }
 .loading-analysis { display: flex; align-items: center; gap: 11px; min-height: 61px; margin-bottom: 12px; padding: 11px 14px; box-shadow: none; }

@@ -20,7 +20,7 @@ export function RulesView({ state, viewModel }: RulesViewProps) {
           {rules.map((rule, index) => <RuleCard key={rule.id} rule={rule} index={index} fields={project?.fields ?? []} selected={state.selectedRuleId === rule.id} viewModel={viewModel} />)}
         </div>
       )}
-      {state.validationIssues.filter((issue) => issue.ruleId).map((issue, index) => <div className="inline-issue" key={`${issue.code}-${index}`}>! {issue.message}</div>)}
+      {state.validationIssues.filter((issue) => issue.ruleId).map((issue, index) => <div className="inline-issue" key={`${issue.code}-${index}`}>{issue.severity === 'warning' ? '⚠' : '!'} {issue.message}</div>)}
     </section>
   );
 }

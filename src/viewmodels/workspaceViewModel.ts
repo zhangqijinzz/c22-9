@@ -1,10 +1,12 @@
 import { evaluateSample } from '../domain/conditionEvaluator';
 import { ruleDomain } from '../domain/ruleDomain';
+import { isErrorIssue } from '../models/ruleModel';
 import type {
   ModuleId,
   RuleAnalysis,
   RuleProject,
   SampleEvaluation,
+  ValidationIssue,
   WorkspaceDocument,
 } from '../models/ruleModel';
 import { cloneData, createBlankProject, createDemoWorkspace, createVersionSnapshot, makeId } from '../models/projectFactory';
@@ -34,6 +36,8 @@ export interface WorkspaceState {
 type Listener = () => void;
 type WorkspaceRepository = Pick<RuleRepository, 'load' | 'save'>;
 type Checker = Pick<RuleCheckService, 'run'>;
+
+const hasBlockingErrors = (issues: ValidationIssue[]): boolean => issues.some(isErrorIssue);
 
 export class RuleWorkspaceViewModel implements WorkspacePort {
   private state: WorkspaceState = {
@@ -117,13 +121,14 @@ export class RuleWorkspaceViewModel implements WorkspacePort {
     if (this.checkTimer) clearTimeout(this.checkTimer);
     this.checkTimer = undefined;
     const issues = ruleDomain.validateProject(project);
-    if (issues.length) {
-      this.publish({ ...this.state, phase: 'validating', checkStatus: 'error', validationIssues: issues, notice: issues[0].message });
+    const blocking = issues.filter(isErrorIssue);
+    if (blocking.length) {
+      this.publish({ ...this.state, phase: 'validating', checkStatus: 'error', validationIssues: issues, notice: blocking[0].message });
       return;
     }
     this.checkOperation?.cancel();
     const revision = ++this.checkRevision;
-    this.publish({ ...this.state, phase: 'checking', checkStatus: 'checking', notice: '正在工作线程中枚举输入空间…' });
+    this.publish({ ...this.state, phase: 'checking', checkStatus: 'checking', validationIssues: issues, notice: '正在工作线程中枚举输入空间…' });
     try {
       const operation = this.checker.run(project);
       this.checkOperation = operation;
@@ -170,9 +175,10 @@ export class RuleWorkspaceViewModel implements WorkspacePort {
     this.cancelCheck();
     const next = { ...workspace, activeProjectId: projectId };
     const issues = ruleDomain.validateProject(project);
-    this.publish({ ...this.state, workspace: next, project, phase: issues.length ? 'validating' : 'editing', activeModule: 'inspection', checkStatus: issues.length ? 'idle' : 'scheduled', analysis: null, validationIssues: issues, sampleEvaluation: evaluateSample(project, project.sampleInputs), selectedRuleId: project.rules[0]?.id, notice: `已切换到“${project.title}”` });
+    const blocked = hasBlockingErrors(issues);
+    this.publish({ ...this.state, workspace: next, project, phase: blocked ? 'validating' : 'editing', activeModule: 'inspection', checkStatus: blocked ? 'idle' : 'scheduled', analysis: null, validationIssues: issues, sampleEvaluation: evaluateSample(project, project.sampleInputs), selectedRuleId: project.rules[0]?.id, notice: `已切换到“${project.title}”` });
     this.scheduleSave(next);
-    if (!issues.length) this.scheduleCheck(80);
+    if (!blocked) this.scheduleCheck(80);
   }
 
   saveVersion(): void {
@@ -209,9 +215,10 @@ export class RuleWorkspaceViewModel implements WorkspacePort {
     };
     const next = { ...workspace, projects: [...workspace.projects, project], activeProjectId: project.id };
     const issues = ruleDomain.validateProject(project);
-    this.publish({ ...this.state, workspace: next, project, phase: issues.length ? 'validating' : 'editing', activeModule: 'rules', checkStatus: issues.length ? 'idle' : 'scheduled', analysis: null, validationIssues: issues, sampleEvaluation: evaluateSample(project, project.sampleInputs), selectedRuleId: project.rules[0]?.id, notice: `已复制版本到项目“${project.title}”` });
+    const blocked = hasBlockingErrors(issues);
+    this.publish({ ...this.state, workspace: next, project, phase: blocked ? 'validating' : 'editing', activeModule: 'rules', checkStatus: blocked ? 'idle' : 'scheduled', analysis: null, validationIssues: issues, sampleEvaluation: evaluateSample(project, project.sampleInputs), selectedRuleId: project.rules[0]?.id, notice: `已复制版本到项目“${project.title}”` });
     this.scheduleSave(next);
-    if (!issues.length) this.scheduleCheck(80);
+    if (!blocked) this.scheduleCheck(80);
   }
 
   private async initialize(): Promise<void> {
@@ -221,11 +228,12 @@ export class RuleWorkspaceViewModel implements WorkspacePort {
       const workspace = saved ?? createDemoWorkspace();
       const project = workspace.projects.find((candidate) => candidate.id === workspace.activeProjectId) ?? workspace.projects[0];
       const issues = ruleDomain.validateProject(project);
-      this.publish({ ...this.state, workspace, project, phase: issues.length ? 'validating' : 'editing', persistence: saved ? 'saved' : 'saving', activeModule: 'inspection', checkStatus: issues.length ? 'idle' : 'scheduled', validationIssues: issues, analysis: null, sampleEvaluation: evaluateSample(project, project.sampleInputs), selectedRuleId: project.rules[0]?.id, notice: saved ? '已从本地恢复最近项目' : '已载入演示项目，可直接修改并检查规则' });
+      const blocked = hasBlockingErrors(issues);
+      this.publish({ ...this.state, workspace, project, phase: blocked ? 'validating' : 'editing', persistence: saved ? 'saved' : 'saving', activeModule: 'inspection', checkStatus: blocked ? 'idle' : 'scheduled', validationIssues: issues, analysis: null, sampleEvaluation: evaluateSample(project, project.sampleInputs), selectedRuleId: project.rules[0]?.id, notice: saved ? '已从本地恢复最近项目' : '已载入演示项目，可直接修改并检查规则' });
       if (saved) this.scheduleCheck(40);
       else {
         this.scheduleSave(workspace);
-        if (!issues.length) this.scheduleCheck(40);
+        if (!blocked) this.scheduleCheck(40);
       }
     } catch (error) {
       this.publish({ ...this.state, phase: 'error', notice: error instanceof Error ? error.message : '项目初始化失败' });
@@ -242,18 +250,19 @@ export class RuleWorkspaceViewModel implements WorkspacePort {
     const updated = { ...project, updatedAt: Date.now() };
     const next = { ...workspace, projects: workspace.projects.map((candidate) => candidate.id === updated.id ? updated : candidate) };
     const issues = ruleDomain.validateProject(updated);
+    const blocked = hasBlockingErrors(issues);
     this.publish({
       ...this.state, workspace: next, project: updated,
-      phase: issues.length ? 'validating' : 'editing', validationIssues: issues,
-      checkStatus: issues.length ? 'idle' : recheck ? 'scheduled' : this.state.checkStatus,
+      phase: blocked ? 'validating' : 'editing', validationIssues: issues,
+      checkStatus: blocked ? 'idle' : recheck ? 'scheduled' : this.state.checkStatus,
       analysis: recheck ? null : this.state.analysis,
       sampleEvaluation: evaluateSample(updated, updated.sampleInputs),
       selectedRuleId: updated.rules.some((rule) => rule.id === this.state.selectedRuleId) ? this.state.selectedRuleId : updated.rules[0]?.id,
       notice,
     });
     this.scheduleSave(next);
-    if (recheck && !issues.length) this.scheduleCheck(180);
-    else if (issues.length) this.cancelPendingCheck();
+    if (recheck && !blocked) this.scheduleCheck(180);
+    else if (blocked) this.cancelPendingCheck();
   }
 
   private scheduleCheck(delay: number): void {

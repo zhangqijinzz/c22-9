@@ -1,4 +1,5 @@
 import type { BusinessRule, RuleAnalysis, RuleProject, RuleVersion, SampleInput } from '../../models/ruleModel';
+import { isErrorIssue } from '../../models/ruleModel';
 import type { WorkspaceState } from '../../viewmodels/workspaceViewModel';
 import type { InspectionViewModel } from './inspectionViewModel';
 
@@ -10,16 +11,19 @@ export function InspectionView({ state, viewModel, onOpenRule }: InspectionViewP
   const isChecking = state.checkStatus === 'checking' || state.checkStatus === 'scheduled';
   const rules = project?.rules ?? [];
   const byId = new Map(rules.map((rule) => [rule.id, rule]));
+  const errors = state.validationIssues.filter(isErrorIssue);
+  const warnings = state.validationIssues.filter((issue) => !isErrorIssue(issue));
   return (
     <section className="module-page inspection-page">
       <div className="page-heading">
         <div><span className="eyebrow">模块 04 / 完整性验证</span><h1>检查与版本</h1><p>定位冲突、遮蔽与遗漏，再保存或冻结一个可追溯版本。</p></div>
-        <div className="button-row">{isChecking ? <button className="button button-quiet" onClick={() => viewModel.cancel()}>取消检查</button> : <button className="button button-primary" disabled={!rules.length || state.validationIssues.length > 0} onClick={() => void viewModel.check()}><span>⌕</span> 运行一致性检查</button>}</div>
+        <div className="button-row">{isChecking ? <button className="button button-quiet" onClick={() => viewModel.cancel()}>取消检查</button> : <button className="button button-primary" disabled={!rules.length || errors.length > 0} onClick={() => void viewModel.check()}><span>⌕</span> 运行一致性检查</button>}</div>
       </div>
 
-      {state.validationIssues.length > 0 && <div className="validation-banner"><strong>规则暂时无法检查</strong><span>{state.validationIssues[0].message}</span><button className="text-button" onClick={() => state.validationIssues[0].ruleId ? onOpenRule(state.validationIssues[0].ruleId) : undefined}>{state.validationIssues[0].ruleId ? '打开相关规则 →' : '修复项目定义'}</button></div>}
-      {state.checkStatus === 'error' && !state.validationIssues.length && <div className="error-banner">检查失败：{state.notice}</div>}
-      {!analysis && !state.validationIssues.length && <div className="loading-analysis card-surface"><div className={isChecking ? 'spinner' : 'analysis-orb'}>{isChecking ? '' : '✳'}</div><div><strong>{isChecking ? '正在分析条件空间' : '准备检查规则集合'}</strong><p>{isChecking ? '计算在独立工作线程中运行，可随时取消。' : '点击“运行一致性检查”查看覆盖与规则关系。'}</p></div>{state.checkStatus === 'success' && <span className="success-mark">✓</span>}</div>}
+      {errors.length > 0 && <div className="validation-banner"><strong>规则暂时无法检查</strong><span>{errors[0].message}</span><button className="text-button" onClick={() => errors[0].ruleId ? onOpenRule(errors[0].ruleId) : undefined}>{errors[0].ruleId ? '打开相关规则 →' : '修复项目定义'}</button></div>}
+      {warnings.map((warning, index) => <div className="validation-banner warning-banner" key={`${warning.code}-${index}`}><strong>警告 · 不影响检查</strong><span>{warning.message}</span>{warning.ruleId && <button className="text-button" onClick={() => onOpenRule(warning.ruleId as string)}>打开相关规则 →</button>}</div>)}
+      {state.checkStatus === 'error' && !errors.length && <div className="error-banner">检查失败：{state.notice}</div>}
+      {!analysis && !errors.length && <div className="loading-analysis card-surface"><div className={isChecking ? 'spinner' : 'analysis-orb'}>{isChecking ? '' : '✳'}</div><div><strong>{isChecking ? '正在分析条件空间' : '准备检查规则集合'}</strong><p>{isChecking ? '计算在独立工作线程中运行，可随时取消。' : '点击“运行一致性检查”查看覆盖与规则关系。'}</p></div>{state.checkStatus === 'success' && <span className="success-mark">✓</span>}</div>}
       {analysis && <AnalysisPanel analysis={analysis} project={project as RuleProject} byId={byId} onOpenRule={onOpenRule} />}
 
       <section className="versions-section">
