@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { evaluateSample } from '../domain/conditionEvaluator';
-import { validateField, validateProject } from '../domain/fieldValidation';
+import { findRangeWarnings, validateField, validateProject } from '../domain/fieldValidation';
 import { analyzeRules } from '../domain/ruleAnalysis';
 import type { BusinessRule, RuleField, RuleProject } from '../models/ruleModel';
 
@@ -32,6 +32,38 @@ describe('field and project validation', () => {
     ];
     expect(validateProject(project(rules))).toEqual([]);
     expect(evaluateSample(project(rules), { amount: 12, tier: 'gold', active: true }).matchedRules.map((rule) => rule.id)).toEqual(['gold', 'active']);
+  });
+});
+
+describe('range warnings for narrowed fields', () => {
+  const narrowed: RuleField = { ...amount, min: 0, max: 1200 };
+
+  it('warns when a numeric condition falls entirely outside the field range', () => {
+    const rules = [
+      makeRule('too-high', amountAtLeast(1500)),
+      makeRule('too-low', { kind: 'group', operator: 'and', conditions: [{ kind: 'predicate', fieldId: 'amount', operator: 'lt', value: 0 }] }),
+      makeRule('eq-out', { kind: 'group', operator: 'and', conditions: [{ kind: 'predicate', fieldId: 'amount', operator: 'eq', value: 1300 }] }),
+      makeRule('between-out', { kind: 'group', operator: 'and', conditions: [{ kind: 'predicate', fieldId: 'amount', operator: 'between', value: { min: 1300, max: 1400 } }] }),
+      makeRule('fine', amountAtLeast(1000)),
+    ];
+    const warnings = findRangeWarnings(project(rules, [narrowed, tier, active]));
+    expect(warnings.map((warning) => warning.ruleId).sort()).toEqual(['between-out', 'eq-out', 'too-high', 'too-low']);
+    expect(warnings.every((warning) => warning.code === 'condition-out-of-range' && warning.fieldId === 'amount')).toBe(true);
+    const tooHigh = warnings.find((warning) => warning.ruleId === 'too-high');
+    expect(tooHigh?.message).toContain('金额');
+    expect(tooHigh?.message).toContain('0–1200');
+  });
+
+  it('stays silent for partially overlapping ranges and invalid field definitions, but still inspects nested groups', () => {
+    const rules = [
+      makeRule('partial', { kind: 'group', operator: 'and', conditions: [{ kind: 'predicate', fieldId: 'amount', operator: 'between', value: { min: 1000, max: 1500 } }] }),
+      makeRule('nested', { kind: 'group', operator: 'or', conditions: [
+        { kind: 'group', operator: 'and', conditions: [{ kind: 'predicate', fieldId: 'amount', operator: 'gt', value: 2000 }] },
+      ] }),
+    ];
+    const warnings = findRangeWarnings(project(rules, [narrowed]));
+    expect(warnings.map((warning) => warning.ruleId)).toEqual(['nested']);
+    expect(findRangeWarnings(project(rules, [{ ...amount, min: 10, max: 0 }]))).toEqual([]);
   });
 });
 

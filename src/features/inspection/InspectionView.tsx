@@ -18,6 +18,7 @@ export function InspectionView({ state, viewModel, onOpenRule }: InspectionViewP
       </div>
 
       {state.validationIssues.length > 0 && <div className="validation-banner"><strong>规则暂时无法检查</strong><span>{state.validationIssues[0].message}</span><button className="text-button" onClick={() => state.validationIssues[0].ruleId ? onOpenRule(state.validationIssues[0].ruleId) : undefined}>{state.validationIssues[0].ruleId ? '打开相关规则 →' : '修复项目定义'}</button></div>}
+      {state.validationWarnings.length > 0 && <div className="warning-banner"><strong>范围警告 · 不影响检查</strong>{state.validationWarnings.map((warning, index) => <div className="warning-banner-row" key={`${warning.code}-${warning.ruleId}-${index}`}><span>⚠ {warning.message}</span>{warning.ruleId && <button className="text-button" onClick={() => onOpenRule(warning.ruleId as string)}>打开相关规则 →</button>}</div>)}</div>}
       {state.checkStatus === 'error' && !state.validationIssues.length && <div className="error-banner">检查失败：{state.notice}</div>}
       {!analysis && !state.validationIssues.length && <div className="loading-analysis card-surface"><div className={isChecking ? 'spinner' : 'analysis-orb'}>{isChecking ? '' : '✳'}</div><div><strong>{isChecking ? '正在分析条件空间' : '准备检查规则集合'}</strong><p>{isChecking ? '计算在独立工作线程中运行，可随时取消。' : '点击“运行一致性检查”查看覆盖与规则关系。'}</p></div>{state.checkStatus === 'success' && <span className="success-mark">✓</span>}</div>}
       {analysis && <AnalysisPanel analysis={analysis} project={project as RuleProject} byId={byId} onOpenRule={onOpenRule} />}

@@ -1,4 +1,4 @@
-import type { RuleCondition, RuleField, RuleProject, ValidationIssue } from '../models/ruleModel';
+import type { BusinessRule, NumberRange, PredicateCondition, RuleCondition, RuleField, RuleProject, ValidationIssue } from '../models/ruleModel';
 
 export function validateField(field: RuleField): ValidationIssue[] {
   const issues: ValidationIssue[] = [];
@@ -75,4 +75,65 @@ function validateCondition(
   if ((condition.operator !== 'isTrue' && condition.operator !== 'isFalse') || typeof condition.value !== 'boolean') {
     issues.push({ code: 'condition-type', ruleId, fieldId: field.id, message: `${ruleId}的布尔条件类型不匹配` });
   }
+}
+
+export function findRangeWarnings(project: RuleProject): ValidationIssue[] {
+  const fieldById = new Map(project.fields.map((field) => [field.id, field]));
+  const warnings: ValidationIssue[] = [];
+  for (const rule of project.rules) collectRangeWarnings(rule.conditions, rule, fieldById, warnings);
+  return warnings;
+}
+
+function collectRangeWarnings(
+  condition: RuleCondition,
+  rule: BusinessRule,
+  fieldById: Map<string, RuleField>,
+  warnings: ValidationIssue[],
+): void {
+  if (condition.kind === 'group') {
+    condition.conditions.forEach((child) => collectRangeWarnings(child, rule, fieldById, warnings));
+    return;
+  }
+  const field = fieldById.get(condition.fieldId);
+  if (!field || field.type !== 'number') return;
+  if (!Number.isFinite(field.min) || !Number.isFinite(field.max) || (field.min as number) > (field.max as number)) return;
+  const min = field.min as number;
+  const max = field.max as number;
+  const description = describeNumericCondition(condition, field);
+  if (!description || numericConditionSatisfiable(condition, min, max)) return;
+  warnings.push({
+    code: 'condition-out-of-range',
+    ruleId: rule.id,
+    fieldId: field.id,
+    message: `「${rule.name}」的条件“${description}”超出${field.name}的合法范围 ${min}–${max}，调整前不会命中`,
+  });
+}
+
+function describeNumericCondition(condition: PredicateCondition, field: RuleField): string | null {
+  if (condition.operator === 'between') {
+    return isNumberRangeValue(condition.value) ? `${field.name} 介于 ${condition.value.min}–${condition.value.max}` : null;
+  }
+  const symbols: Record<string, string> = { eq: '=', gt: '>', gte: '≥', lt: '<', lte: '≤' };
+  const symbol = symbols[condition.operator];
+  return symbol && typeof condition.value === 'number' ? `${field.name} ${symbol} ${condition.value}` : null;
+}
+
+function numericConditionSatisfiable(condition: PredicateCondition, min: number, max: number): boolean {
+  if (condition.operator === 'between') {
+    if (!isNumberRangeValue(condition.value) || condition.value.min > condition.value.max) return true;
+    return condition.value.min <= max && condition.value.max >= min;
+  }
+  if (typeof condition.value !== 'number') return true;
+  switch (condition.operator) {
+    case 'eq': return condition.value >= min && condition.value <= max;
+    case 'gt': return max > condition.value;
+    case 'gte': return max >= condition.value;
+    case 'lt': return min < condition.value;
+    case 'lte': return min <= condition.value;
+    default: return true;
+  }
+}
+
+function isNumberRangeValue(value: PredicateCondition['value']): value is NumberRange {
+  return typeof value === 'object' && value !== null && 'min' in value && 'max' in value;
 }

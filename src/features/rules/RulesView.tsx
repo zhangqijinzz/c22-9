@@ -21,6 +21,7 @@ export function RulesView({ state, viewModel }: RulesViewProps) {
         </div>
       )}
       {state.validationIssues.filter((issue) => issue.ruleId).map((issue, index) => <div className="inline-issue" key={`${issue.code}-${index}`}>! {issue.message}</div>)}
+      {state.validationWarnings.filter((warning) => warning.ruleId).map((warning, index) => <div className="inline-issue inline-warning" key={`${warning.code}-${warning.fieldId}-${index}`}>⚠ {warning.message}</div>)}
     </section>
   );
 }

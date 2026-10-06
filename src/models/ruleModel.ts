@@ -107,6 +107,7 @@ export interface SampleEvaluation {
 export interface DomainChecker {
   analyze(project: RuleProject): RuleAnalysis;
   validateProject(project: RuleProject): ValidationIssue[];
+  findRangeWarnings(project: RuleProject): ValidationIssue[];
 }
 
 export const fieldLabel = (field: RuleField): string => field.name || '未命名字段';

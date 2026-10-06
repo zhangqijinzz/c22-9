@@ -169,6 +169,7 @@ button:disabled { cursor: not-allowed !important; opacity: .5; }
 .empty-card h2 { margin: 11px 0 4px; color: #52645d; font-size: 12px; }
 .empty-card p { max-width: 370px; margin: 0; color: #97a49e; font-size: 9px; line-height: 1.7; }
 .inline-issue { margin-top: 11px; padding: 9px 11px; border: 1px solid #f0e2cc; border-radius: 6px; background: #fffaf2; color: #9c7a4e; font-size: 9px; }
+.inline-warning { border-style: dashed; border-color: #eedcb9; background: #fffdf7; color: #a5874f; }
 
 .rules-list { display: grid; gap: 11px; }
 .rule-card { overflow: hidden; box-shadow: 0 3px 14px rgba(35,67,58,.03); transition: border-color .15s ease, box-shadow .15s ease; }
@@ -248,6 +249,10 @@ button:disabled { cursor: not-allowed !important; opacity: .5; }
 .validation-banner, .error-banner, .truncated-banner { display: flex; align-items: center; gap: 9px; margin: 0 0 11px; padding: 9px 11px; border: 1px solid #efdfc7; border-radius: 6px; background: #fffaf2; color: #9b7a4d; font-size: 9px; }
 .validation-banner strong { color: #8f6c3f; font-size: 9px; }
 .validation-banner span { flex: 1; }
+.warning-banner { margin: 0 0 11px; padding: 9px 11px; border: 1px dashed #eedcb9; border-radius: 6px; background: #fffdf7; color: #a5874f; font-size: 9px; }
+.warning-banner > strong { display: block; margin-bottom: 4px; color: #8f6c3f; font-size: 9px; }
+.warning-banner-row { display: flex; align-items: center; gap: 9px; padding: 5px 0; border-top: 1px solid #f6ecd7; }
+.warning-banner-row span { flex: 1; }
 .error-banner { border-color: #efd7d3; background: #fff7f5; color: #ab665d; }
 .truncated-banner { border-color: #dce5ee; background: #f6f9fc; color: #6b8198; }
 .loading-analysis { display: flex; align-items: center; gap: 11px; min-height: 61px; margin-bottom: 12px; padding: 11px 14px; box-shadow: none; }

@@ -45,6 +45,7 @@ export function FieldsView({ state, viewModel }: FieldsViewProps) {
       )}
 
       {state.validationIssues.filter((issue) => issue.fieldId).map((issue) => <div className="inline-issue" key={`${issue.code}-${issue.fieldId}`}>! {issue.message}</div>)}
+      {state.validationWarnings.filter((warning) => warning.fieldId).map((warning, index) => <div className="inline-issue inline-warning" key={`${warning.code}-${warning.ruleId}-${index}`}>⚠ {warning.message}</div>)}
     </section>
   );
 }

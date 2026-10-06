@@ -13,6 +13,7 @@ export function SamplesView({ state, viewModel }: SamplesViewProps) {
     <section className="module-page">
       <div className="page-heading"><div><span className="eyebrow">模块 03 / 输入推演</span><h1>样例试验区</h1><p>输入一组具体值，观察所有命中规则及最终采用的结果。</p></div><button className="button button-primary" disabled={!fields.length || !rules.length} onClick={() => viewModel.evaluate()}>运行样例 <span>↗</span></button></div>
       {!fields.length && <div className="inline-issue">定义字段后即可输入样例。</div>}
+      {state.validationWarnings.map((warning, index) => <div className="inline-issue inline-warning" key={`${warning.code}-${warning.ruleId}-${index}`}>⚠ {warning.message}</div>)}
       <div className="sample-layout">
         <section className="sample-input-card card-surface">
           <header className="panel-heading"><div><span className="eyebrow">INPUT VALUES</span><h2>测试输入</h2></div><span className="count-chip">{fields.length} 个字段</span></header>

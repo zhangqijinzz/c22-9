@@ -82,6 +82,32 @@ describe('RuleWorkspaceViewModel', () => {
     workspace.dispose();
   });
 
+  it('lists out-of-range conditions as warnings without blocking checks, and clears them once fixed', async () => {
+    const repository = new MemoryRepository();
+    const checker = new FakeChecker();
+    const workspace = new RuleWorkspaceViewModel(repository, checker);
+    await workspace.start();
+    const project = workspace.getSnapshot().project as RuleProject;
+    workspace.commitProject({ ...project, fields: project.fields.map((field) => field.id === 'cart-total' ? { ...field, max: 1200 } : field) });
+    const warnings = workspace.getSnapshot().validationWarnings;
+    expect(warnings.some((warning) => warning.ruleId === 'rule-gold-hidden' && warning.fieldId === 'cart-total')).toBe(true);
+    expect(workspace.getSnapshot().phase).not.toBe('validating');
+
+    await workspace.runCheck();
+    expect(workspace.getSnapshot().checkStatus).toBe('success');
+    expect(workspace.getSnapshot().analysis).not.toBeNull();
+
+    const current = workspace.getSnapshot().project as RuleProject;
+    workspace.commitProject({
+      ...current,
+      rules: current.rules.map((rule) => rule.id === 'rule-gold-hidden'
+        ? { ...rule, conditions: { ...rule.conditions, conditions: rule.conditions.conditions.map((condition) => condition.kind === 'predicate' && condition.fieldId === 'cart-total' ? { kind: 'predicate', fieldId: 'cart-total', operator: 'gte', value: 1000 } : condition) } }
+        : rule),
+    });
+    expect(workspace.getSnapshot().validationWarnings.filter((warning) => warning.ruleId === 'rule-gold-hidden')).toEqual([]);
+    workspace.dispose();
+  });
+
   it('saves versions, freezes and resumes a version, and copies it into a new project', async () => {
     const workspace = new RuleWorkspaceViewModel(new MemoryRepository(), new FakeChecker());
     await workspace.start();
